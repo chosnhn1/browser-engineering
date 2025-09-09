@@ -42,8 +42,10 @@ class URL:
             s = ctx.wrap_socket(s, server_hostname=self.host)
             # it is hard to implement TLS yourself - learn more
 
-        request = f"GET {self.path} HTTP/1.0\r\n"
+        request = f"GET {self.path} HTTP/1.1\r\n"
         request += f"Host: {self.host}\r\n"
+        request += f"Connection: close\r\n"
+        request += f"User-Agent: browser.py/0.1 (Windows NT 6.1; Win64; x64) \r\n"
         request += "\r\n"
         # why use \r\n for new line?:
         # also, why you pass two new lines at the end?: 
@@ -77,7 +79,8 @@ class URL:
         s.close()
 
         return content
-    
+
+
 def show(body):
     # skipping-all-tags browser!
     in_tag = False
@@ -92,7 +95,6 @@ def show(body):
 def load(url):
     body = url.request()
     show(body)
-
 
 if __name__ == "__main__":
     import sys
