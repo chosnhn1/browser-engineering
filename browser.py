@@ -72,6 +72,7 @@ class URL:
             line = response.readline().decode("utf-8")
             # until there are no more headers
             if line == "\r\n": break
+            print(line)
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
 
@@ -79,7 +80,24 @@ class URL:
         # assert "content-encoding" not in response_headers
         # theses headers are about compress chunk pages
         if "content-encoding" in response_headers and response_headers["content-encoding"] == "gzip":
-            compressed_content = response.read()
+            if "transfer-encoding" in response_headers and response_headers["transfer-encoding"] == "chunked":
+                compressed_content = b""
+                while True:
+                    chunk_size = int(response.readline().decode("utf-8"), 16)
+                    if chunk_size == 0:
+                        break
+
+                    chunk_data = response.read(chunk_size)
+                    compressed_content += chunk_data
+                    response.readline()
+                while True:
+                    trailer_line = response.readline()
+                    if not trailer_line or trailer_line == b"\r\n":
+                        break
+
+            else:
+                compressed_content = response.read()
+
             content = gzip.decompress(compressed_content).decode("utf-8")
             s.close()
         else:
