@@ -2,6 +2,7 @@ import socket
 import ssl
 import tkinter
 import tkinter.font
+import gzip
 
 class URL:
     def __init__(self, url):
@@ -48,6 +49,7 @@ class URL:
         request += f"Host: {self.host}\r\n"
         request += f"Connection: close\r\n"
         request += f"User-Agent: browser.py/0.1 (Windows NT 6.1; Win64; x64) \r\n"
+        request += f"Accept-Encoding: gzip \r\n"
         request += "\r\n"
         # why use \r\n for new line?:
         # also, why you pass two new lines at the end?: 
@@ -57,28 +59,33 @@ class URL:
         s.send(request.encode("utf8"))
 
         # let's work with server response
-        response = s.makefile("r", encoding="utf8", newline="\r\n")
+        # response = s.makefile("r", encoding="utf8", newline="\r\n")
+        response = s.makefile("rb", newline="\r\n")
 
-        statusline = response.readline()
+
+        statusline = response.readline().decode("utf-8")
         version, status, explanation = statusline.split(" ", 2)
 
         # hold response headers
         response_headers = {}
         while True:
-            line = response.readline()
+            line = response.readline().decode("utf-8")
             # until there are no more headers
             if line == "\r\n": break
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
 
-        # make sure no weirdos in response
-        assert "transfer-encoding" not in response_headers
-        assert "content-encoding" not in response_headers
+        # assert "transfer-encoding" not in response_headers
+        # assert "content-encoding" not in response_headers
         # theses headers are about compress chunk pages
-
-        # read content and close socket
-        content = response.read()
-        s.close()
+        if "content-encoding" in response_headers and response_headers["content-encoding"] == "gzip":
+            compressed_content = response.read()
+            content = gzip.decompress(compressed_content).decode("utf-8")
+            s.close()
+        else:
+            # read content and close socket
+            content = response.read().decode("utf-8")
+            s.close()
 
         return content
 
