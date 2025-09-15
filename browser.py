@@ -237,40 +237,6 @@ def print_tree(node, indent=0):
 WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
 
-def layout(tokens):
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    weight, style = "normal", "roman"
-
-    for tok in tokens:
-        if isinstance(tok, Text):
-            for word in tok.text.split():
-                font = tkinter.font.Font(
-                    size=16,
-                    weight=weight,
-                    slant=style,
-                )
-                display_list.append((cursor_x, cursor_y, word, font))
-                w = font.measure(word)
-                # if word overflowed from the line: 
-                if cursor_x + w > WIDTH - HSTEP:
-                    # give linespacing of additional 25%
-                    cursor_y += font.metrics("linespace") * 1.25
-                    cursor_x = HSTEP
-
-                # give each word a padding
-                cursor_x += w + font.measure(" ")
-        elif tok.tag == "i":
-            style = "italic"
-        elif tok.tag == "/i":
-            style = "roman"
-        elif tok.tag == "b":
-            weight = "bold"
-        elif tok.tag == "/b":
-            weight = "normal"
-        
-    return display_list
-
 
 class Layout:
     def __init__(self, tokens):
