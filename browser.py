@@ -409,6 +409,7 @@ class Browser:
         # scroll
         self.scroll = 0
         self.window.bind("<Down>", self.scrolldown)
+        self.window.bind("<Up>", self.scrollup)
         self.display_list = []
 
     def draw(self):
@@ -437,6 +438,15 @@ class Browser:
     def scrolldown(self, e):
         self.scroll += SCROLL_STEP
         self.draw()
+
+    def scrollup(self, e):
+        # make sure cannot go up beyond document
+        if self.scroll - SCROLL_STEP < 0:
+            self.scroll = 0
+        else:
+            self.scroll -= SCROLL_STEP 
+        self.draw()
+        
 
 
 class Text:
