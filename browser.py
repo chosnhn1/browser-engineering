@@ -78,7 +78,7 @@ class URL:
 
         # assert "transfer-encoding" not in response_headers
         # assert "content-encoding" not in response_headers
-        # theses headers are about compress chunk pages
+        # theses headers are about compressing & chunking pages
         if "content-encoding" in response_headers and response_headers["content-encoding"] == "gzip":
             if "transfer-encoding" in response_headers and response_headers["transfer-encoding"] == "chunked":
                 compressed_content = b""
