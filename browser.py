@@ -158,6 +158,7 @@ class HTMLParser:
     def add_text(self, text):
         # side-stepping whitespace
         if text.isspace(): return
+        self.implicit_tags(None)
 
         parent = self.unfinished[-1]
         node = Text(text, parent)
@@ -169,6 +170,11 @@ class HTMLParser:
         "link", "meta", "param", "source", "track", "wbr",
     ]
 
+    HEAD_TAGS = [
+        "base", "basefont", "bgsound", "noscript",
+        "link", "meta", "title", "style", "script",
+    ]
+
 
     def add_tag(self, tag):
         # get extract attributes from tags
@@ -176,6 +182,7 @@ class HTMLParser:
 
         # throw out any tags starts with bang: i.e. doctype, comments
         if tag.startswith("!"): return
+        self.implicit_tags(tag)
 
         # close tag
         if tag.startswith("/"):
@@ -199,6 +206,9 @@ class HTMLParser:
             self.unfinished.append(node)
 
     def finish(self):
+        if not self.unfinished:
+            self.implicit_tags(None)
+
         while len(self.unfinished) > 1:
             node = self.unfinished.pop()
             parent = self.unfinished[-1]
@@ -223,6 +233,29 @@ class HTMLParser:
 
             
         return tag, attributes
+    
+    # for handling non-finished and omitted tags
+    def implicit_tags(self, tag):
+        while True:
+            open_tags = [node.tag for node in self.unfinished]
+        
+            # omit html
+            if open_tags == [] and tag != "html":
+                self.add_tag("html")
+            
+            # omit head
+            elif open_tags == ["html"] and tag not in ["head", "body", "/html"]:
+                if tag in self.HEAD_TAGS:
+                    self.add_tag("head")
+                else:
+                    self.add_tag("body")
+
+            # omit /head
+            elif open_tags == ["html", "head"] and tag not in ["/head"] + self.HEAD_TAGS:
+                self.add_tag("/head")
+            else:
+                break
+
 
     
 
@@ -239,7 +272,7 @@ HSTEP, VSTEP = 13, 18
 
 
 class Layout:
-    def __init__(self, tokens):
+    def __init__(self, nodes):
         self.display_list = []
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
@@ -247,9 +280,48 @@ class Layout:
         self.style = "roman"
         self.size = 12
         self.line = []
-        for tok in tokens:
-            self.token(tok)
+        
+        self.recurse(nodes)
         self.flush()
+
+
+    def open_tag(self, tag):
+        if tag == "i":
+            self.style = "italic"
+        elif tag == "b":
+            self.weight = "bold"
+        elif tag == "small":
+            self.size -= 2
+        elif tag == "big":
+            self.size += 4
+        elif tag == "br":
+            self.flush()        
+
+    def close_tag(self, tag):
+        if tag == "i":
+            self.style = "roman"
+        elif tag == "b":
+            self.weight = "normal"
+        elif tag == "small":
+            self.size += 2
+        elif tag == "big":
+            self.size -= 4
+        elif tag == "p":
+            self.flush()
+            self.cursor_y += VSTEP
+        
+    def recurse(self, tree):
+        if isinstance(tree, Text):
+            for word in tree.text.split():
+                self.word(word)
+
+        else:
+            self.open_tag(tree.tag)
+            for child in tree.children:
+                self.recurse(child)
+
+            self.close_tag(tree.tag)
+
 
     def token(self, tok):
         if isinstance(tok, Text):
@@ -352,8 +424,13 @@ class Browser:
     def load(self, url):
         body = url.request()
         # parse response body with lex function
-        tokens = lex(body)
-        self.display_list = Layout(tokens).display_list
+        # tokens = lex(body)
+        # self.display_list = Layout(tokens).display_list
+        # self.draw()
+
+        # switch to node tree instead of token list
+        self.nodes = HTMLParser(body).parse()
+        self.display_list = Layout(self.nodes).display_list
         self.draw()
 
     # scroll down
@@ -387,9 +464,9 @@ if __name__ == "__main__":
     # get URL from first argument
     # load(URL(sys.argv[1]))
 
-    # Browser().load(URL(sys.argv[1]))
-    # tkinter.mainloop()
+    Browser().load(URL(sys.argv[1]))
+    tkinter.mainloop()
 
-    body = URL(sys.argv[1]).request()
-    nodes = HTMLParser(body).parse()
-    print_tree(nodes)
+    # body = URL(sys.argv[1]).request()
+    # nodes = HTMLParser(body).parse()
+    # print_tree(nodes)
