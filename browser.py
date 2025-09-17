@@ -106,29 +106,7 @@ class URL:
             s.close()
 
         return content
-
-def lex(body):
-    out = []
-    buffer = ""
-    in_tag = False
-    for c in body:
-        if c == "<":
-            in_tag = True
-            if buffer: out.append(Text(buffer))
-            buffer = ""
-        elif c == ">":
-            in_tag = False
-            out.append(Element(buffer))
-            buffer = ""
-        else:
-            buffer += c
     
-    if not in_tag and buffer:
-        out.append(Text(buffer))
-    
-    return out
-
-
 
 class HTMLParser:
     def __init__(self, body):
@@ -269,21 +247,88 @@ def print_tree(node, indent=0):
 # global variables for Browser
 WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
+BLOCK_ELEMENTS = [
+    "html", "body", "article", "section", "nav", "aside",
+    "h1", "h2", "h3", "h4", "h5", "h6", "hgroup", "header",
+    "footer", "address", "p", "hr", "pre", "blockquote",
+    "ol", "ul", "menu", "li", "dl", "dt", "dd", "figure",
+    "figcaption", "main", "div", "table", "form", "fieldset",
+    "legend", "details", "summary"
+]
 
+class BlockLayout:
+    def __init__(self, node, parent, previous):
+        self.node = node
+        self.parent = parent
+        self.previous = previous
+        self.children = []
 
-class Layout:
-    def __init__(self, nodes):
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
         self.display_list = []
-        self.cursor_x = HSTEP
-        self.cursor_y = VSTEP
-        self.weight = "normal"
-        self.style = "roman"
-        self.size = 12
-        self.line = []
-        
-        self.recurse(nodes)
-        self.flush()
 
+    def layout_mode(self):
+        if isinstance(self.node, Text):
+            return "inline"
+        elif any([isinstance(child, Element) and child.tag in BLOCK_ELEMENTS for child in self.node.children]):
+            return "block"
+        elif self.node.children:
+            return "inline"
+        else:
+            return "block"
+
+    # drawing base from tree(get basics from parent)
+    def layout(self):
+        self.x = self.parent.x
+        self.width = self.parent.width
+
+        # location set with previous item
+        if self.previous:
+            self.y = self.previous.y + self.previous.height
+        else:
+            self.y = self.parent.y
+        
+        # get block / inline mode and draw accordingly
+        mode = self.layout_mode()
+        if mode == "block":
+            previous = None
+            for child in self.node.children:
+                next = BlockLayout(child, self, previous)
+                self.children.append(next)
+                previous = next
+        else:
+            self.cursor_x = 0
+            self.cursor_y = 0
+            self.weight = "normal"
+            self.style = "roman"
+            self.size = 12
+            self.line = []
+            self.recurse(self.node)
+            self.flush()
+
+        # recursively draw children items
+        for child in self.children:
+            child.layout()
+
+        # set height with mode and pass it to height
+        if mode == "block":
+            self.height = sum([child.height for child in self.children])
+        else:
+            self.height = self.cursor_y
+        
+    def paint(self):
+        cmds = []
+        if self.layout_mode() == "inline":
+            if isinstance(self.node, Element) and self.node.tag == "pre":
+                x2, y2 = self.x + self.width, self.y + self.height
+                rect = DrawRect(self.x, self.y, x2, y2, "gray")
+                cmds.append(rect)
+
+            for x, y, word, font in self.display_list:
+                cmds.append(DrawText(x, y, word, font))
+        return cmds
 
     def open_tag(self, tag):
         if tag == "i":
@@ -295,7 +340,12 @@ class Layout:
         elif tag == "big":
             self.size += 4
         elif tag == "br":
-            self.flush()        
+            self.flush()
+        elif tag == "li":
+            self.cursor_x += HSTEP
+            self.word("· ")
+            
+
 
     def close_tag(self, tag):
         if tag == "i":
@@ -309,6 +359,8 @@ class Layout:
         elif tag == "p":
             self.flush()
             self.cursor_y += VSTEP
+        elif tag == "li":
+            self.flush()
         
     def recurse(self, tree):
         if isinstance(tree, Text):
@@ -359,28 +411,93 @@ class Layout:
         # self.display_list.append((self.cursor_x, self.cursor_y, word, font))
         w = font.measure(word)
         # if word overflowed from the line: 
-        if self.cursor_x + w > WIDTH - HSTEP:
+        if self.cursor_x + w > self.width:
             self.flush()
 
         self.line.append((self.cursor_x, word, font))   # y will computed later
         # give each word a padding
         self.cursor_x += w + font.measure(" ")
 
+
+    # function processing text and new line
     def flush(self):
+        # have no line: return
         if not self.line : return
+
+        # get font metrics from line
         metrics = [font.metrics() for x, word, font in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
         
         baseline = self.cursor_y + 1.25 * max_ascent
-        for x, word, font in self.line:
-            y = baseline - font.metrics("ascent")
+        for rel_x, word, font in self.line:
+            x = self.x + rel_x
+            y = self.y + baseline - font.metrics("ascent")
             self.display_list.append((x, y, word, font))
+        self.cursor_x = 0
+        self.line = []
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + 1.25 * max_descent
 
-        self.cursor_x = HSTEP
-        self.line = []
 
+class DrawText:
+    def __init__(self, x1, y1, text, font):
+        self.top = y1
+        self.left = x1
+        self.text = text
+        self.font = font
+        self.bottom = y1 + font.metrics("linespace")
+
+    def execute(self, scroll, canvas):
+        canvas.create_text(
+            self.left, self.top - scroll,
+            text=self.text,
+            font=self.font,
+            anchor="nw"
+        )
+    
+
+class DrawRect:
+    def __init__(self, x1, y1, x2, y2, color):
+        self.top = y1
+        self.left = x1
+        self.bottom = y2
+        self.right = x2
+        self.color = color
+
+    def execute(self, scroll, canvas):
+        canvas.create_rectangle(
+            self.left, self.top - scroll,
+            self.right, self.bottom - scroll,
+            width=0,
+            fill=self.color
+        )
+
+
+def paint_tree(layout_object, display_list):
+    display_list.extend(layout_object.paint())
+
+    for child in layout_object.children:
+        paint_tree(child, display_list)
+
+class DocumentLayout:
+    def __init__(self, node):
+        self.node = node
+        self.parent = None
+        self.previous = None
+        self.children = []
+
+    def layout(self):
+        child = BlockLayout(self.node, self, None)
+        self.children.append(child)
+
+        self.width = WIDTH - 2 * HSTEP
+        self.x = HSTEP
+        self.y = VSTEP
+        child.layout()
+        self.height = child.height
+
+    def paint(self):
+        return []
 
 # global font dictionary for caching
 FONTS = {}
@@ -414,29 +531,25 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
-        for x, y, word, font in self.display_list:
-            if y > self.scroll + HEIGHT: continue
-            if y + font.metrics("linespace") < self.scroll: continue
-            self.canvas.create_text(x, y - self.scroll, text=word, font=font,
-                                    # anchor: northwest corner, not center is the anchor
-                                    anchor="nw")
+        for cmd in self.display_list:
+            if cmd.top > self.scroll + HEIGHT: continue
+            if cmd.bottom < self.scroll: continue
+            cmd.execute(self.scroll, self.canvas)
     
     # load given URL instance
     def load(self, url):
         body = url.request()
-        # parse response body with lex function
-        # tokens = lex(body)
-        # self.display_list = Layout(tokens).display_list
-        # self.draw()
-
-        # switch to node tree instead of token list
         self.nodes = HTMLParser(body).parse()
-        self.display_list = Layout(self.nodes).display_list
+        self.document = DocumentLayout(self.nodes)
+        self.document.layout()
+        self.display_list = []
+        paint_tree(self.document, self.display_list)
         self.draw()
 
     # scroll down
     def scrolldown(self, e):
-        self.scroll += SCROLL_STEP
+        max_y = max(self.document.height + 2 * VSTEP - HEIGHT, 0)
+        self.scroll = min(self.scroll + SCROLL_STEP, max_y)
         self.draw()
 
     def scrollup(self, e):
