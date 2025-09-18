@@ -456,6 +456,7 @@ class DocumentLayout:
 
     def layout(self):
         child = BlockLayout(self.node, self, None)
+
         self.children.append(child)
 
         self.width = WIDTH - 2 * HSTEP
@@ -640,6 +641,15 @@ def style(node, rules):
         node_pct = float(node.style["font-size"][:-1]) / 100
         parent_px = float(parent_font_size[:-2])
         node.style["font-size"] = str(node_pct * parent_px) + "px"
+
+    # inherit color
+    if node.style["color"] == "inherit":
+        if node.parent:
+            parent_font_color = node.parent.style["color"]
+        else:
+            parent_font_color = INHERITED_PROPERTIES["color"]
+        
+        node.style["color"] = parent_font_color
 
     # do this recursively
     for child in node.children:
