@@ -338,22 +338,17 @@ class BlockLayout:
     def paint(self):
         cmds = []
 
-        # CSS
+        # CSS processing
         bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
             x2, y2 = self.x + self.width, self.y + self.height
             rect = DrawRect(self.x, self.y, x2, y2, bgcolor)
             cmds.append(rect)
             
-
         if self.layout_mode() == "inline":
-            # if isinstance(self.node, Element) and self.node.tag == "pre":
-            #     x2, y2 = self.x + self.width, self.y + self.height
-            #     rect = DrawRect(self.x, self.y, x2, y2, "gray")
-            #     cmds.append(rect)
-
             for x, y, word, font, color in self.display_list:
                 cmds.append(DrawText(x, y, word, font, color))
+
         return cmds
 
     def recurse(self, node):
@@ -672,7 +667,7 @@ def style(node, rules):
             parent_font_size = node.parent.style["font-size"]
         else:
             parent_font_size = INHERITED_PROPERTIES["font-size"]
-            
+
         node_pct = float(node.style["font-size"][:-1] / 100)
         parent_px = float(parent_font_size[:-2])
         node.style["font-size"] = str(node_pct * parent_px) + "px"
