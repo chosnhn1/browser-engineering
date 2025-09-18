@@ -75,3 +75,20 @@ This repo is a personal step-by-step exercise of "Web Browser Engineering" by Pa
     4. Table of contents
     5. Anonymous block boxes
     6. Run-ins
+  * Chapter 6
+    1. Fonts
+    2. Width/height
+    3. Class selectors
+    4. display
+    5. Shorthand properties
+    6. Inline style sheets
+    7. Fast descendant selectors
+    8. Selector sequences
+    9. `!important`
+    10. `:has` selectors
+
+## Notes
+
+### Chapter 6: Applying Author Styles
+
+building recursive parsing functions: `CSSParser`
