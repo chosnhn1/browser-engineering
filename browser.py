@@ -365,35 +365,6 @@ class BlockLayout:
             
             for child in node.children:
                 self.recurse(child)
-
-            
-
-
-    def token(self, tok):
-        if isinstance(tok, Text):
-            for word in tok.text.split():
-                self.word(word)
-        elif tok.tag == "i":
-            self.style = "italic"
-        elif tok.tag == "/i":
-            self.style = "roman"
-        elif tok.tag == "b":
-            self.weight = "bold"
-        elif tok.tag == "/b":
-            self.weight = "normal"
-        elif tok.tag == "small":
-            self.size -= 2
-        elif tok.tag == "/small":
-            self.size += 2
-        elif tok.tag == "big":
-            self.size += 4
-        elif tok.tag == "/big":
-            self.size -= 4
-        elif tok.tag == "br":
-            self.flush()
-        elif tok.tag == "/p":
-            self.flush()
-            self.cursor_y += VSTEP
     
     def word(self, node, word):
         weight = node.style["font-weight"]
@@ -402,15 +373,14 @@ class BlockLayout:
         # code below needed for CSS to Tk conversion:
         if style == "normal": style = "roman"
         size = int(float(node.style["font-size"][:-2]) * .75)
-
         font = get_font(size, weight, style)
-        color = node.style["color"]
 
         w = font.measure(word)
         # if word overflowed from the line: 
         if self.cursor_x + w > self.width:
             self.flush()
 
+        color = node.style["color"]
         self.line.append((self.cursor_x, word, font, color))   # y will computed later
         # give each word a padding
         self.cursor_x += w + font.measure(" ")
@@ -424,7 +394,6 @@ class BlockLayout:
         # get font metrics from line
         metrics = [font.metrics() for x, word, font, color in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
-        
         baseline = self.cursor_y + 1.25 * max_ascent
         for rel_x, word, font, color in self.line:
             x = self.x + rel_x
@@ -450,8 +419,8 @@ class DrawText:
             self.left, self.top - scroll,
             text=self.text,
             font=self.font,
+            anchor="nw",
             fill=self.color,
-            anchor="nw"
         )
     
 
@@ -668,7 +637,7 @@ def style(node, rules):
         else:
             parent_font_size = INHERITED_PROPERTIES["font-size"]
 
-        node_pct = float(node.style["font-size"][:-1] / 100)
+        node_pct = float(node.style["font-size"][:-1]) / 100
         parent_px = float(parent_font_size[:-2])
         node.style["font-size"] = str(node_pct * parent_px) + "px"
 
@@ -727,17 +696,14 @@ class Browser:
 
         # load style
         rules = DEFAULT_STYLE_SHEET.copy()
-        style(self.nodes, sorted(rules, key=cascade_priority))
 
-        # build layout
-        self.document = DocumentLayout(self.nodes)
-        self.document.layout()
-
-        # links
+        # load link
         links = [node.attributes["href"] for node in tree_to_list(self.nodes, [])
                 if isinstance(node, Element) and node.tag == "link"
                 and node.attributes.get("rel") == "stylesheet"
                 and "href" in node.attributes]
+        
+        # get CSS rules from stylesheet link
         for link in links:
             style_url = url.resolve(link)
             try:
@@ -745,6 +711,13 @@ class Browser:
             except:
                 continue
             rules.extend(CSSParser(body).parse())
+
+        # do styling
+        style(self.nodes, sorted(rules, key=cascade_priority))
+
+        # build layout
+        self.document = DocumentLayout(self.nodes)
+        self.document.layout()
 
         # build display list with tree and render
         self.display_list = []
