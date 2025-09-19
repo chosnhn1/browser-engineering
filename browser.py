@@ -292,7 +292,7 @@ class BlockLayout:
         elif any([isinstance(child, Element) and child.tag in BLOCK_ELEMENTS for child in self.node.children]):
             return "block"
         elif self.node.children:
-            return "inline"
+            return "inline"        
         else:
             return "block"
 
@@ -312,6 +312,10 @@ class BlockLayout:
         if mode == "block":
             previous = None
             for child in self.node.children:
+                # remove header from layout tree
+                if child.tag == "head":
+                    continue
+
                 next = BlockLayout(child, self, previous)
                 self.children.append(next)
                 previous = next
@@ -644,6 +648,15 @@ def style(node, rules):
 
     # inherit color
     if node.style["color"] == "inherit":
+        if node.parent:
+            parent_font_color = node.parent.style["color"]
+        else:
+            parent_font_color = INHERITED_PROPERTIES["color"]
+        
+        node.style["color"] = parent_font_color
+
+    # rgba: pass (support later)
+    if node.style["color"].startswith("rgba"):
         if node.parent:
             parent_font_color = node.parent.style["color"]
         else:
