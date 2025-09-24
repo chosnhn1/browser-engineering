@@ -70,7 +70,7 @@ This repo is a personal step-by-step exercise of "Web Browser Engineering" by Pa
     6. Mis-nested formatting tags
   * Chapter 5
     1. Links bar
-    2. Hidden head
+    2. Hidden head (✅)
     3. Bullets (✅)
     4. Table of contents
     5. Anonymous block boxes
@@ -92,3 +92,13 @@ This repo is a personal step-by-step exercise of "Web Browser Engineering" by Pa
 ### Chapter 6: Applying Author Styles
 
 building recursive parsing functions: `CSSParser`
+
+### Chapter 7
+
+#### The process of using "address bar"
+
+1. move focus to address bar via click
+2. the click do select all (for convenience)
+3. type => address bar
+4. bar updates as user types; not navigates yet
+5. type "Enter" to actually navigates to that page
